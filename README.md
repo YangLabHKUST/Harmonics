@@ -1,6 +1,6 @@
 # Harmonics
 Hierarchical distribution matching enables comprehensive characterization of common and condition-specific cell niches in spatial omics data
-![Overview_of_Harmonics]("https://github.com/user-attachments/assets/508ec76f-5965-4646-a06f-1a8b4103d1d5")
+<img width="6976" height="7957" alt="fig1" src="https://github.com/user-attachments/assets/f56bb28c-ef2e-4a11-a043-86f361de1458" />
 
 
 ## System requirements

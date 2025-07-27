@@ -4,7 +4,7 @@ Hierarchical distribution matching enables comprehensive characterization of com
 
 
 ## System requirements
-The package development version is tested on Windows operating systems and tested on Linux and Windows
+The package is tested on Linux and Windows
 
 
 ## Installation

@@ -1,5 +1,7 @@
 # Harmonics
-Hierarchical distribution matching enables comprehensive characterization of common and condition-specific cell niches in spatial omics data
+Hierarchical distribution matching enables comprehensive characterization of common and condition-specific cell niches in spatial omics data.
+
+Benchmarking codes are deposited at [https://zenodo.org/records/16728860](https://zenodo.org/records/16728860).
 <img width="6976" height="7957" alt="fig1" src="https://github.com/user-attachments/assets/f56bb28c-ef2e-4a11-a043-86f361de1458" />
 
 

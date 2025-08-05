@@ -48,7 +48,7 @@ Initialize the model
 ```
 model = Harmonics_Model(adata_list,  # a list of anndata objects, the whole dataset for condition-agnostic dataset / the control group in case-control setting / the reference data for label transfer
                         slice_name_list,  # a list of slice names for corresponding data in adata_list
-                        cond_list=cond_list,  # a list of anndata objects, None for condition-agnostic dataset / the condition group in case-control setting / the query data for label transfer
+                        cond_list=cond_list,  # a list of anndata objects, None for condition-agnostic dataset / the case group in case-control setting / the query data for label transfer
                         cond_name_list=cond_name_list,  # a list of slice names for corresponding data in cond_list
                         concat_label='slice_name',  # the key in .obs for storing slice names
                         proportion_label=None,  # the key in .obsm of the cell type deconvolution results for low resolution data
@@ -109,7 +109,7 @@ adata_list, adata_concat = model.select_solution(n_niche=None,  # the number of 
 ```
 
 
-Over-clustering initialization for the condition group in case-control setting
+Over-clustering initialization for the case group in case-control setting
 ```
 model.initialize_clusters_cond(assign_metric='jsd',  # metric for evaluting distribution similarity when assigning cells to BCNs
                                threshold=0.1,  # min divergence below this threshold will be assigned to BCNs 

@@ -10,6 +10,21 @@ The package is tested on Linux and Windows
 
 
 ## Installation
+### Install from PyPI.
+Create an environment.
+
+```
+conda create -n Harmonics_CNI python=3.11
+conda activate Harmonics_CNI
+```
+
+Install Harmonics
+
+```
+pip install harmonics-bio
+```
+
+### Install from GitHub.
 Clone the repository. 
 
 ```

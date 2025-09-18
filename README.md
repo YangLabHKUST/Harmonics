@@ -55,6 +55,9 @@ python setup.py install
 
 
 ## Tutorial
+Detailed tutorials covering the usage of Harmonics and the reproduction of experiments can be found at [Read the Docs](https://harmonics-tutorial.readthedocs.io/en/latest/).
+
+## Easy start
 Import the package.
 ```
 from Harmonics import *

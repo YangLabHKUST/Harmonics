@@ -3,7 +3,12 @@ Hierarchical distribution matching enables comprehensive characterization of com
 
 Benchmarking codes are deposited at [https://zenodo.org/records/16728860](https://zenodo.org/records/16728860).  
 Preprocessed data are deposited at [https://zenodo.org/records/16794669](https://zenodo.org/records/16794669).
-<img width="6976" height="7957" alt="fig1" src="https://github.com/user-attachments/assets/f56bb28c-ef2e-4a11-a043-86f361de1458" />
+![fig1](./demo/fig1.png)
+
+
+## Vedio Demo of Hierarchical distribution matching 
+From 20 niches to 2 niches
+<video src="./demo/vedio_demo.mp4" controls width="600"></video>
 
 
 ## System requirements

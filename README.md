@@ -6,10 +6,10 @@ Preprocessed data are deposited at [https://zenodo.org/records/16794669](https:/
 ![fig1](./demo/fig1.png)
 
 
-## Vedio demo for Hierarchical distribution matching 
+## Video demo for Hierarchical distribution matching 
 From 20 niches to 2 niches
 
-![Demo](./demo/vedio_demo.gif)
+![Demo](./demo/video_demo.gif)
 
 
 ## System requirements

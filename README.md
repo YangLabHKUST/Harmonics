@@ -1,7 +1,7 @@
 # Harmonics
 Hierarchical distribution matching enables comprehensive characterization of common and condition-specific cell niches in spatial omics data.
 
-Benchmarking codes are deposited at [https://zenodo.org/records/16728860](https://zenodo.org/records/16728860).  
+Benchmarking codes are deposited at [https://zenodo.org/records/19281087](https://zenodo.org/records/19281087).  
 Preprocessed data are deposited at [https://zenodo.org/records/16794669](https://zenodo.org/records/16794669).
 ![fig1](./demo/fig1.png)
 
@@ -88,9 +88,10 @@ Construct cell representations (cell type distribution)
 ```
 model.preprocess(ct_key='celltype',  # cell type key in .obs 
                  spatial_key='spatial',  # spatial coordinate key in .obsm
-                 method='joint',  # the mode for graph construction 'joint': 'n_step'-hop delaunay triangulation with graph completion to at least 'n_neighbors' neighbors per cell; 'delaunay': 'n_step'-hop delaunay triangulation; 'knn': 'n_neighbors' neighbors per cell; None: directly use the cell type composition for low resolution data
+                 method='joint',  # the mode for graph construction 'joint': 'n_step'-hop delaunay triangulation with graph completion to at least 'n_neighbors' neighbors per cell; 'delaunay': 'n_step'-hop delaunay triangulation; 'knn': 'n_neighbors' neighbors per cell; 'radius': radius-based neighborhood; None: directly use the cell type composition for low resolution data
                  n_step=3,  
                  n_neighbors=20,
+                 radius='auto',  # the radius for radius-based neighborhood, set to 'auto' to use the median distance to the 'n_neighbors'-th nearest neighbor for each cell, which is slice=specific
                  cut_percentage=99,  # preserving the shortest 'cut_percentage'% edges of the delaunay triangulation adjacency graph
                  )
 ```
@@ -122,7 +123,7 @@ Select the solution
 adata_list, adata_concat = model.select_solution(n_niche=None,  # the number of niches to select, set to None for metric-guided solution selection
                                                  niche_key='niche_label',  # the key in .obs to store the results
                                                  auto=True,  # whether to automatically determine the solution, if 'n_niche=None' than 'auto' should be True
-                                                 metric='jsd',  # using the minJSD score for solution selection
+                                                 metric='jsd_v2',  # using the bootstrap-based minJSD score for solution selection
                                                  threshold=0.1,  # threshold for minJSD
                                                  return_adata=True,  # whether to return anndata object
                                                  plot=True,  # whether to plot the minJSD curve
@@ -165,7 +166,7 @@ cond_list, cond_concat = model.select_solution_cond(n_csn=None,  # the number of
                                                     niche_key='niche_label',  # the key in .obs to store the results niche assignment result
                                                     csn_key='csn_label',  # the key in .obs to store the results CSN assignment result
                                                     auto=True,  # whether to automatically determine the solution, if 'n_csn=None' than 'auto' should be True
-                                                    metric='jsd',  # using the minJSD score for solution selection
+                                                    metric='jsd_v2',  # using the bootstrap-based minJSD score for solution selection
                                                     threshold=0.1,  # threshold for minJSD
                                                     return_adata=True,  # whether to return anndata object
                                                     plot=True,  # whether to plot the minJSD curve

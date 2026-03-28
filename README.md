@@ -91,7 +91,7 @@ model.preprocess(ct_key='celltype',  # cell type key in .obs
                  method='joint',  # the mode for graph construction 'joint': 'n_step'-hop delaunay triangulation with graph completion to at least 'n_neighbors' neighbors per cell; 'delaunay': 'n_step'-hop delaunay triangulation; 'knn': 'n_neighbors' neighbors per cell; 'radius': radius-based neighborhood; None: directly use the cell type composition for low resolution data
                  n_step=3,  
                  n_neighbors=20,
-                 radius='auto',  # the radius for radius-based neighborhood, set to 'auto' to use the median distance to the 'n_neighbors'-th nearest neighbor for each cell, which is slice=specific
+                 radius='auto',  # the radius for radius-based neighborhood, set to 'auto' to use the median distance to the 'n_neighbors'-th nearest neighbor for each cell, which is slice-specific
                  cut_percentage=99,  # preserving the shortest 'cut_percentage'% edges of the delaunay triangulation adjacency graph
                  )
 ```

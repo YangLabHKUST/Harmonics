@@ -93,6 +93,7 @@ model.preprocess(ct_key='celltype',  # cell type key in .obs
                  n_neighbors=20,
                  radius='auto',  # the radius for radius-based neighborhood, set to 'auto' to use the median distance to the 'n_neighbors'-th nearest neighbor for each cell, which is slice-specific
                  cut_percentage=99,  # preserving the shortest 'cut_percentage'% edges of the delaunay triangulation adjacency graph
+                 kernel=None,  # None: equal-weight for cells in neighborhoods, 'gaussian': Gaussian-weight for cells in neighborhoods
                  )
 ```
 

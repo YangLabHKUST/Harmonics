@@ -1,7 +1,7 @@
 from setuptools import Command, find_packages, setup
 
-__lib_name__ = "harmonics-bio"
-__lib_version__ = "1.0.1"
+__lib_name__ = "harmonics_bio"
+__lib_version__ = "1.0.3"
 __description__ = "Hierarchical distribution matching enables comprehensive characterization of common and condition-specific cell niches in spatial omics data"
 __url__ = "https://github.com/YangLabHKUST/Harmonics"
 __author__ = "Yuyao Liu"

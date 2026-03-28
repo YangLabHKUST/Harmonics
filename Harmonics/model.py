@@ -3,7 +3,7 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
-from .utils import *
+from .utils import * 
 
 
 class Harmonics_Model():

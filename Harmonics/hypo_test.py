@@ -6,7 +6,7 @@ import scipy.stats as stats
 from statsmodels.stats.multitest import multipletests
 from scipy.stats import mannwhitneyu
 
-from .utils import *
+from .utils import * 
 
 
 def ct_enrichment_test(niche_dist, cell_count_niche, idx2ct_dict, niche_summary,

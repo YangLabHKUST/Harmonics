@@ -17,7 +17,7 @@ from statsmodels.stats.multitest import multipletests
 from numba import njit, prange
 from collections import Counter
 from matplotlib.collections import LineCollection
-from matplotlib.lines import Line2D
+from matplotlib.lines import Line2D  
 
 
 def Delaunay_adjacency_mtx(adata, spatial_key='spatial', cut_percentage=99, return_adata=False, verbose=True):

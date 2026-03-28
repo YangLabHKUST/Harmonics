@@ -138,7 +138,9 @@ class Harmonics_Model():
                    method='joint',
                    n_step=3, 
                    n_neighbors=20,
+                   radius='auto',
                    cut_percentage=99,
+                   kernel=None,
                    ):
         
         # initialize
@@ -205,12 +207,20 @@ class Harmonics_Model():
                                     return_adata=False, 
                                     verbose=self.verbose,
                                     )
+            elif method.lower() == 'radius':
+                radius_adjacency_matrix(total_list, 
+                                        spatial_key=spatial_key, 
+                                        radius=radius, 
+                                        n_median_neighbors=n_neighbors, 
+                                        return_adata=False, 
+                                        verbose=self.verbose
+                                        )
             else:
-                raise ValueError(f"Unknown method {method}. Supported methods are 'delaunay', 'knn', and 'joint'.")
+                raise ValueError(f"Unknown method {method}. Supported methods are 'delaunay', 'knn', 'radius', and 'joint'.")
             
         elif self.proportion_label is None:
             raise ValueError("A method should be provided unless the proportion label is specificed, which is only recommended for low resolution data.\n"
-                             "Supported methods are 'delaunay', 'knn', and 'joint'")
+                             "Supported methods are 'delaunay', 'knn', 'radius', and 'joint'")
         
         # generate one-hot matrix
         if self.proportion_label is None:
@@ -232,6 +242,9 @@ class Harmonics_Model():
                     adj_mtx = (adj_mtx > 0).astype(int)
                 elif method.lower() == 'knn':
                     adj_mtx = total_list[i].obsp[f'knn_adj_mtx_{n_neighbors}']
+                    adj_mtx = adj_mtx + sp.eye(adj_mtx.shape[0])
+                elif method.lower() == 'radius':
+                    adj_mtx = total_list[i].obsp[f'radius_adj_mtx_{radius}']
                     adj_mtx = adj_mtx + sp.eye(adj_mtx.shape[0])
                 else:
                     adj_mtx = total_list[i].obsp[f'joint_adj_mtx_{n_neighbors}']
@@ -259,7 +272,7 @@ class Harmonics_Model():
                     if i < self.n_slices_basic:
                         self.ct_onehot_list_basic.append(sp.csr_matrix(onehot_mtx))
                     else:
-                        self.ct_onehot_list_cond.append(sp.csr_matrix(onehot_mtx))
+                        self.ct_onehot_list_cond.append(sp.csr_matrix(onehot_mtx)) 
             else:
                 onehot_mtx = total_list[i].obsm[self.proportion_label]  # not one-hot
 
@@ -310,12 +323,18 @@ class Harmonics_Model():
             print('Calculating cell type distribution for microenvironments...')
 
         if method is not None:
+            if kernel is not None:
+                coords_list = [self.adata_list[i].obsm[spatial_key] for i in range(self.n_slices_basic)]
+            else:
+                coords_list = None
             self.micro_dist_list_basic, self.n_neighbor_list_basic = update_microenvironment(self.adj_mtx_list_basic, 
                                                                                             self.ct_onehot_list_basic, 
                                                                                             n_celltypes=self.n_celltypes, 
                                                                                             n_slices=self.n_slices_basic, 
                                                                                             cut_edge=False, 
                                                                                             cn_labels=None, 
+                                                                                            kernel=kernel,
+                                                                                            coords=coords_list,
                                                                                             )
         else:
             self.micro_dist_list_basic = self.ct_onehot_list_basic.copy()
@@ -338,12 +357,18 @@ class Harmonics_Model():
         if self.withcond:
 
             if method is not None:
+                if kernel is not None:
+                    coords_list = [self.cond_list[i].obsm[spatial_key] for i in range(self.n_slices_cond)]
+                else:
+                    coords_list = None
                 self.micro_dist_list_cond, self.n_neighbor_list_cond = update_microenvironment(self.adj_mtx_list_cond, 
                                                                                             self.ct_onehot_list_cond, 
                                                                                             n_celltypes=self.n_celltypes, 
                                                                                             n_slices=self.n_slices_cond, 
                                                                                             cut_edge=False, 
                                                                                             cn_labels=None, 
+                                                                                            kernel=kernel,
+                                                                                            coords=coords_list,
                                                                                             )
             else:
                 self.micro_dist_list_cond = self.ct_onehot_list_cond.copy()
@@ -573,7 +598,7 @@ class Harmonics_Model():
                         n_niche=None, 
                         niche_key='niche_label', 
                         auto=True, 
-                        metric='jsd',
+                        metric='jsd_v2',
                         threshold=0.1,
                         return_adata=True,
                         plot=True, 
@@ -589,6 +614,10 @@ class Harmonics_Model():
         self.cn_label_basic = None  # cell niche labels for each cell
         self.cn_dist_basic = None  # cell type distrbution for niches (Q * K)
         self.cell_count_niche_basic = None  # cell counts for each niche
+        self.score_list_minjsd_v2_mean_basic = None
+        self.score_list_minjsd_v2_std_basic = None
+        self.score_list_minjsd_v2_ci_lower_basic = None
+        self.score_list_minjsd_v2_ci_upper_basic = None
 
         # select solution based on specified niche count
         if n_niche is not None:
@@ -606,7 +635,7 @@ class Harmonics_Model():
             if self.verbose:
                 print('Automatically selecting best solution...')
             candidate_indices = []
-            if metric.lower() == 'jsd' or metric.lower() == 'wjsd':
+            if metric.lower() in ['jsd', 'wjsd']:
                 if metric.lower() == 'jsd':
                     score_list = self.score_list_minjsd_basic.copy()
                 else:
@@ -630,19 +659,193 @@ class Harmonics_Model():
                     solution = self.cn_label_list_basic[candidate_indices[0]]
                 
                 if plot or save:
-                    plot_minjsd_score(score_list, 
-                                      self.cn_count_list_basic, 
-                                      threshold, 
-                                      fig_size=fig_size, 
-                                      plot=plot,
-                                      save=save, 
-                                      save_dir=save_dir, 
-                                      file_name=file_name,
-                                      **kwargs,
-                                      )
-            else:
-                raise ValueError(f"Unknown metric {metric}. Supported metric are 'jsd' and 'wjsd'.")
+                    plot_score(score_list, 
+                                self.cn_count_list_basic, 
+                                threshold=threshold, 
+                                fig_size=fig_size, 
+                                plot=plot,
+                                save=save, 
+                                save_dir=save_dir, 
+                                file_name=file_name,
+                                **kwargs,
+                                )
+            
+            # ### new metrics
+            # elif metric.lower() in ['fmi', 'ari', 'nmi', 'asw', 'js_asw', 'fisher', 'chi', 'dbi', 'dass_min', 'dass_mean', 'dafisher', 'dachi']:
 
+            #     n_sample_thres = 10000
+            #     sample_size = 1000
+            #     n_iters = 100
+            #     min_count = 10
+
+            #     if metric.lower() in ['fmi', 'ari', 'nmi']:
+            #         score_list = stability_score(self.cn_label_list_basic, metric=metric.lower())
+
+            #     elif metric.lower() == 'asw':
+            #         if self.n_cells_basic <= n_sample_thres:
+            #             score_list = asw_score(self.micro_dist_basic, 
+            #                                     self.cn_label_list_basic,
+            #                                     )
+            #         else:
+            #             score_list = fast_asw_score(self.micro_dist_basic, 
+            #                                         self.cn_label_list_basic, 
+            #                                         sample_size=sample_size, 
+            #                                         n_iterations=n_iters, 
+            #                                         min_count=min_count, 
+            #                                         equal_prob=False, 
+            #                                         replace=False, 
+            #                                         verbose=True,
+            #                                         )
+                
+            #     elif metric.lower() == 'js_asw':  
+            #         if self.n_cells_basic <= n_sample_thres:
+            #             score_list = js_asw_score(self.micro_dist_basic, 
+            #                                         self.cn_label_list_basic, 
+            #                                         parallel=self.parallel
+            #                                         )
+            #         else:
+            #             score_list = fast_js_asw_score(self.micro_dist_basic, 
+            #                                             self.cn_label_list_basic, 
+            #                                             parallel=self.parallel, 
+            #                                             sample_size=sample_size, 
+            #                                             n_iterations=n_iters, 
+            #                                             min_count=min_count, 
+            #                                             equal_prob=False, 
+            #                                             replace=False, 
+            #                                             verbose=True,
+            #                                             )
+            #     elif metric.lower() in ['fisher', 'chi', 'dbi']:
+            #         if self.n_cells_basic <= n_sample_thres:
+            #             score_list = variance_ratio_score(self.micro_dist_basic, 
+            #                                                 self.cn_label_list_basic,
+            #                                                 metric=metric.lower(),
+            #                                                 )
+            #         else:
+            #             score_list = fast_variance_ratio_score(self.micro_dist_basic, 
+            #                                                     self.cn_label_list_basic, 
+            #                                                     metric=metric.lower(),
+            #                                                     sample_size=sample_size, 
+            #                                                     n_iterations=n_iters, 
+            #                                                     min_count=min_count, 
+            #                                                     equal_prob=False, 
+            #                                                     replace=False, 
+            #                                                     verbose=True,
+            #                                                     )
+                
+            #     elif metric.lower() in ['dass_min', 'dass_mean']:
+            #         b_type = metric.lower().split('_', 1)[1]
+            #         score_list = dist_aware_silhouette_score(self.micro_dist_basic, 
+            #                                                  self.ct_onehot_basic,
+            #                                                  self.cn_label_list_basic, 
+            #                                                  b_type=b_type,
+            #                                                  parallel=self.parallel,
+            #                                                  )
+                    
+            #     elif metric.lower() in ['dafisher', 'dachi']:
+            #         score_list = dist_aware_variance_ratio_score(self.micro_dist_basic, 
+            #                                                     self.ct_onehot_basic,
+            #                                                     self.cn_label_list_basic, 
+            #                                                     metric=metric.lower(),
+            #                                                     parallel=self.parallel,
+            #                                                     )
+                    
+            #     if metric.lower() in ['dbi']:
+            #         target_value = min(score_list)
+            #     else:
+            #         target_value = max(score_list)
+            #     candidate_indices = [i for i, v in enumerate(score_list) if v == target_value]
+            #     if self.verbose:
+            #         print(f'Recommended number of niches are {[self.cn_count_list_basic[idx] for idx in candidate_indices]}')
+            #         print(f'Selecting {self.cn_count_list_basic[candidate_indices[0]]} niches as the best solution.')
+            #     solution = self.cn_label_list_basic[candidate_indices[0]]
+
+            #     ### tmp
+            #     self.score_list_basic = score_list.copy()
+
+            #     if plot or save:
+            #         plot_score(score_list, 
+            #                     self.cn_count_list_basic, 
+            #                     threshold=None, 
+            #                     fig_size=fig_size, 
+            #                     plot=plot,
+            #                     save=save, 
+            #                     save_dir=save_dir, 
+            #                     file_name=file_name,
+            #                     **kwargs,
+            #                     )
+                    
+            ### new metric
+            elif metric.lower() in ['jsd_v2']:
+                upper_bound = self.cn_count_list_basic[-1]
+                lower_bound = self.cn_count_list_basic[0]
+                upper_decided = False
+                mean_list, std_list, ci_low_list, ci_high_list = minjsd_bootstrap_basic(self.ct_onehot_basic, 
+                                                                                        self.cn_label_list_basic, 
+                                                                                        n_bootstrap=100, 
+                                                                                        parallel=self.parallel, 
+                                                                                        seed=self.seed,
+                                                                                        verbose=self.verbose,
+                                                                                        )
+                self.score_list_minjsd_v2_mean_basic = mean_list.copy()
+                self.score_list_minjsd_v2_std_basic = std_list.copy()
+                self.score_list_minjsd_v2_ci_lower_basic = ci_low_list.copy()
+                self.score_list_minjsd_v2_ci_upper_basic = ci_high_list.copy()
+
+                score_list = mean_list.copy()
+                for solution_idx in range(len(score_list)):
+                    if solution_idx == 0:
+                        if score_list[solution_idx] >= threshold:
+                            candidate_indices.append(solution_idx)
+                            if self.verbose:
+                                print(f'Better solutions may be found if **Qmax** is set larger!')
+                    else:
+                        if score_list[solution_idx-1] < threshold and score_list[solution_idx] >= threshold:
+                            candidate_indices.append(solution_idx)
+
+                    if solution_idx == 0:
+                        if ci_high_list[solution_idx] >= threshold:
+                            upper_bound = self.cn_count_list_basic[solution_idx]
+                            upper_decided = True
+                    else:
+                        if ci_high_list[solution_idx-1] < threshold and ci_high_list[solution_idx] >= threshold and not upper_decided:
+                            upper_bound = self.cn_count_list_basic[solution_idx]
+                            upper_decided = True
+
+                    if solution_idx < len(score_list)-1:
+                        if ci_low_list[solution_idx] < threshold:
+                            lower_bound = self.cn_count_list_basic[solution_idx+1]
+                    else:
+                        if ci_low_list[solution_idx] < threshold:
+                            lower_bound = self.cn_count_list_basic[solution_idx]
+
+                if len(candidate_indices) == 0:
+                    raise ValueError('No proper solution has been found!\n'
+                                     'Please try decreasing the threshold or manually set the number of niches.')
+                else:
+                    if self.verbose:
+                        print(f'Suggested range of niche count is from {lower_bound} to {upper_bound}.')
+                        print(f'Recommended number of niches are {[self.cn_count_list_basic[idx] for idx in candidate_indices]}')
+                        print(f'Selecting {self.cn_count_list_basic[candidate_indices[0]]} niches as the best solution.')
+                    solution = self.cn_label_list_basic[candidate_indices[0]]
+                
+                if plot or save:
+                    plot_minjsd_bootstrap(mean_list, 
+                                          ci_low_list, 
+                                          ci_high_list,
+                                          self.cn_count_list_basic, 
+                                          threshold=threshold, 
+                                          fig_size=fig_size, 
+                                          plot=plot,
+                                          save=save, 
+                                          save_dir=save_dir, 
+                                          file_name=file_name,
+                                          **kwargs,
+                                          )
+                    
+            else:
+                # raise ValueError(f"Unknown metric {metric}. Supported metric are 'jsd', 'jsd_v2', 'wjsd', 'fmi', 'ari', 'nmi', 'asw', 'js_asw', 'fisher', 'chi', 'dbi', 'dass_min', 'dass_mean', 'dafisher', and 'dachi'.")
+                raise ValueError(f"Unknown metric {metric}. Supported metric are 'jsd', 'jsd_v2', and 'wjsd'")
+            
         else:
             raise ValueError('Please either set a real number for **n_niche** or set **auto** to Ture')
 
@@ -1072,7 +1275,7 @@ class Harmonics_Model():
                              niche_key='niche_label',
                              csn_key='csn_label',
                              auto=True, 
-                             metric='jsd',
+                             metric='jsd_v2',
                              threshold=0.1,
                              return_adata=True,
                              plot=True, 
@@ -1087,6 +1290,10 @@ class Harmonics_Model():
         self.cn_label_cond = None  # cell niche labels for each cell
         self.cn_dist_cond = None  # cell type distrbution for niches (R * K)
         self.cell_count_niche_cond = None  # cell counts for each niche
+        self.score_list_minjsd_v2_mean_cond = None
+        self.score_list_minjsd_v2_std_cond = None
+        self.score_list_minjsd_v2_ci_lower_cond = None
+        self.score_list_minjsd_v2_ci_upper_cond = None
 
         # select solution based on CSN count
         if n_csn is not None:
@@ -1104,7 +1311,7 @@ class Harmonics_Model():
             if self.verbose:
                 print('Automatically selecting best solution...')
             candidate_indices = []
-            if metric.lower() == 'jsd' or metric.lower() == 'wjsd':
+            if metric.lower() in ['jsd', 'wjsd']:
                 if metric.lower() == 'jsd':
                     score_list = self.score_list_minjsd_cond.copy()
                 else:
@@ -1130,18 +1337,201 @@ class Harmonics_Model():
                     solution = self.cn_label_list_cond[candidate_indices[0]]
                 
                 if plot or save:
-                    plot_minjsd_score(score_list[:-1], 
-                                      self.cn_count_list_cond[:-1], 
-                                      threshold, 
-                                      fig_size=fig_size, 
-                                      plot=plot,
-                                      save=save, 
-                                      save_dir=save_dir, 
-                                      file_name=file_name,
-                                      **kwargs,
-                                      )
+                    plot_score(score_list[:-1], 
+                                self.cn_count_list_cond[:-1], 
+                                threshold=threshold, 
+                                fig_size=fig_size, 
+                                plot=plot,
+                                save=save, 
+                                save_dir=save_dir, 
+                                file_name=file_name,
+                                **kwargs,
+                                )
+                    
+            # ### new metrics
+            # elif metric.lower() in ['fmi', 'ari', 'nmi', 'asw', 'js_asw', 'fisher', 'chi', 'dbi', 'dass_min', 'dass_mean', 'dafisher', 'dachi']:
+
+            #     n_sample_thres = 10000
+            #     sample_size = 1000
+            #     n_iters = 100
+            #     min_count = 10
+
+            #     if metric.lower() in ['fmi', 'ari', 'nmi']:
+            #         score_list = stability_score(self.cn_label_list_cond, metric=metric.lower())
+
+            #     elif metric.lower() == 'asw':
+            #         if self.n_cells_cond <= n_sample_thres:
+            #             score_list = asw_score(self.micro_dist_cond, 
+            #                                     self.cn_label_list_cond,
+            #                                     )
+            #         else:
+            #             score_list = fast_asw_score(self.micro_dist_cond, 
+            #                                         self.cn_label_list_cond, 
+            #                                         sample_size=sample_size, 
+            #                                         n_iterations=n_iters, 
+            #                                         min_count=min_count, 
+            #                                         equal_prob=False, 
+            #                                         replace=False, 
+            #                                         verbose=True,
+            #                                         )
+
+            #     elif metric.lower() == 'js_asw':  
+            #         if self.n_cells_cond <= n_sample_thres:
+            #             score_list = js_asw_score(self.micro_dist_cond, 
+            #                                         self.cn_label_list_cond, 
+            #                                         parallel=self.parallel,
+            #                                         )
+            #         else:
+            #             score_list = fast_js_asw_score(self.micro_dist_cond, 
+            #                                             self.cn_label_list_cond, 
+            #                                             parallel=self.parallel, 
+            #                                             sample_size=sample_size, 
+            #                                             n_iterations=n_iters, 
+            #                                             min_count=min_count, 
+            #                                             equal_prob=False, 
+            #                                             replace=False, 
+            #                                             verbose=True,
+            #                                             )
+                        
+            #     elif metric.lower() in ['fisher', 'chi', 'dbi']:
+            #         if self.n_cells_cond <= n_sample_thres:
+            #             score_list = variance_ratio_score(self.micro_dist_cond, 
+            #                                                 self.cn_label_list_cond,
+            #                                                 metric=metric.lower(),
+            #                                                 )
+            #         else:
+            #             score_list = fast_variance_ratio_score(self.micro_dist_cond, 
+            #                                                     self.cn_label_list_cond, 
+            #                                                     metric=metric.lower(),
+            #                                                     sample_size=sample_size, 
+            #                                                     n_iterations=n_iters, 
+            #                                                     min_count=min_count, 
+            #                                                     equal_prob=False, 
+            #                                                     replace=False, 
+            #                                                     verbose=True,
+            #                                                     )
+
+            #     elif metric.lower() in ['dass_min', 'dass_mean']:
+            #         b_type = metric.lower().split('_', 1)[1]
+            #         score_list = dist_aware_silhouette_score(self.micro_dist_cond, 
+            #                                                  self.ct_onehot_cond,
+            #                                                  self.cn_label_list_cond, 
+            #                                                  b_type=b_type,
+            #                                                  parallel=self.parallel,
+            #                                                  )
+                
+            #     elif metric.lower() in ['dafisher', 'dachi']:
+            #         score_list = dist_aware_variance_ratio_score(self.micro_dist_cond, 
+            #                                                     self.ct_onehot_cond,
+            #                                                     self.cn_label_list_cond, 
+            #                                                     metric=metric.lower(),
+            #                                                     parallel=self.parallel,
+            #                                                     )
+
+            #     if metric.lower() in ['dbi']:
+            #         target_value = min(score_list)
+            #     else:
+            #         target_value = max(score_list)
+            #     candidate_indices = [i for i, v in enumerate(score_list) if v == target_value]
+            #     if self.cn_count_list_cond[candidate_indices[0]] == 0:
+            #         print('No proper solution with condition specific niche has been found!\n'
+            #               'Assigning all cells to basic niches!\n'
+            #               'Please try decreasing the threshold or manually set the number of niches.')
+            #     else:
+            #         if self.verbose:
+            #             print(f'Recommended number of condition specific niches are {[self.cn_count_list_cond[idx] for idx in candidate_indices]}')
+            #             print(f'Selecting {self.cn_count_list_cond[candidate_indices[0]]} new niches as the best solution.')
+            #     solution = self.cn_label_list_cond[candidate_indices[0]]
+
+            #     ### tmp
+            #     self.score_list_cond = score_list.copy()
+
+            #     if plot or save:
+            #         plot_score(score_list, 
+            #                     self.cn_count_list_cond, 
+            #                     threshold=None, 
+            #                     fig_size=fig_size, 
+            #                     plot=plot,
+            #                     save=save, 
+            #                     save_dir=save_dir, 
+            #                     file_name=file_name,
+            #                     **kwargs,
+            #                     )
+            
+            ### new metric
+            elif metric.lower() in ['jsd_v2']:
+                upper_bound = self.cn_count_list_cond[-1]
+                lower_bound = self.cn_count_list_cond[0]
+                upper_decided = False
+                mean_list, std_list, ci_low_list, ci_high_list = minjsd_bootstrap_cond(self.ct_onehot_cond, 
+                                                                                        self.cn_label_list_cond, 
+                                                                                        self.cn_dist_basic,
+                                                                                        n_bootstrap=100, 
+                                                                                        parallel=self.parallel, 
+                                                                                        seed=self.seed,
+                                                                                        verbose=self.verbose,
+                                                                                        )
+                self.score_list_minjsd_v2_mean_cond = mean_list.copy()
+                self.score_list_minjsd_v2_std_cond = std_list.copy()
+                self.score_list_minjsd_v2_ci_lower_cond = ci_low_list.copy()
+                self.score_list_minjsd_v2_ci_upper_cond = ci_high_list.copy()
+                
+                score_list = mean_list.copy()
+                for solution_idx in range(len(score_list)):
+                    if solution_idx == 0:
+                        if score_list[solution_idx] >= threshold:
+                            candidate_indices.append(solution_idx)
+                            if self.verbose:
+                                print(f'Better solutions may be found if **Rmax** is set larger!')
+                    else:
+                        if score_list[solution_idx-1] < threshold and score_list[solution_idx] >= threshold:
+                            candidate_indices.append(solution_idx)
+
+                    if solution_idx == 0:
+                        if ci_high_list[solution_idx] >= threshold:
+                            upper_bound = self.cn_count_list_cond[solution_idx]
+                            upper_decided = True
+                    else:
+                        if ci_high_list[solution_idx-1] < threshold and ci_high_list[solution_idx] >= threshold and not upper_decided:
+                            upper_bound = self.cn_count_list_cond[solution_idx]
+                            upper_decided = True
+
+                    if solution_idx < len(score_list)-1:
+                        if ci_low_list[solution_idx] < threshold:
+                            lower_bound = self.cn_count_list_cond[solution_idx+1]
+                    else:
+                        if ci_low_list[solution_idx] < threshold:
+                            lower_bound = self.cn_count_list_cond[solution_idx]
+
+                if len(candidate_indices) == 0:
+                    print('No proper solution with condition specific niche has been found!\n'
+                          'Assigning all cells to basic niches!\n'
+                          'Please try decreasing the threshold or manually set the number of niches.')
+                    solution = self.cn_label_list_cond[self.cn_count_list_cond.index(0)]
+                else:
+                    if self.verbose:
+                        print(f'Suggested range of condition specific niche count is from {lower_bound} to {upper_bound}.')
+                        print(f'Recommended number of condition specific niches are {[self.cn_count_list_cond[idx] for idx in candidate_indices]}')
+                        print(f'Selecting {self.cn_count_list_cond[candidate_indices[0]]} new niches as the best solution.')
+                    solution = self.cn_label_list_cond[candidate_indices[0]]
+                
+                if plot or save:
+                    plot_minjsd_bootstrap(mean_list[:-1], 
+                                          ci_low_list[:-1], 
+                                          ci_high_list[:-1],
+                                          self.cn_count_list_cond[:-1], 
+                                          threshold=threshold, 
+                                          fig_size=fig_size, 
+                                          plot=plot,
+                                          save=save, 
+                                          save_dir=save_dir, 
+                                          file_name=file_name,
+                                          **kwargs,
+                                          )
+                    
             else:
-                raise ValueError(f"Unknown metric {metric}. Supported metric are 'jsd' and 'wjsd'.")
+                # raise ValueError(f"Unknown metric {metric}. Supported metric are 'jsd', 'jsd_v2', 'wjsd', 'fmi', 'ari', 'nmi', 'asw', 'js_asw', 'fisher', 'chi', 'dbi', 'dass_min', 'dass_mean', 'dafisher', and 'dachi'.")
+                raise ValueError(f"Unknown metric {metric}. Supported metric are 'jsd', 'jsd_v2', and 'wjsd'")
 
         else:
             raise ValueError('Please either set a real number for **n_niche** or set **auto** to Ture')

@@ -4,6 +4,7 @@ import anndata as ad
 import scipy.sparse as sp
 import scipy.stats as stats
 from statsmodels.stats.multitest import multipletests
+from scipy.stats import mannwhitneyu
 
 from .utils import *
 
@@ -449,4 +450,103 @@ def nnc_enrichment_test(adata_list, niche_key, niche_summary=None, spatial_key='
     
     return df_results, edge_prop_mtx, n1_count
 
+
+def cal_nnc_mtx(adata, niche_key, niche_summary=None, adj_mtx_key=None, spatial_key=None, cut_percentage=99, reserve_nonexist=False): 
+
+
+    labels = adata.obs[niche_key]
+
+    if niche_summary is None:
+        niche_summary = sorted(set(labels))
+    niche_summary = list(niche_summary)
+    n_niches = len(niche_summary)
+
+    n2n_mtx = np.zeros((n_niches, n_niches))
+
+    if adj_mtx_key is not None:
+        adj_mtx = adata.obsp[adj_mtx_key]
+    elif spatial_key is not None:
+        Delaunay_adjacency_mtx(adata,
+                                spatial_key=spatial_key, 
+                                cut_percentage=cut_percentage, 
+                                return_adata=False,
+                                verbose=False,
+                                )
+        adj_mtx = adata.obsp['delaunay_adj_mtx']
+    else:
+        raise ValueError('Either adj_mtx_key or spatial_key must be provided!')
+
+    rows, cols = adj_mtx.nonzero()
+
+    pairs = [(labels[j1], labels[j2]) for j1, j2 in zip(rows, cols) if labels[j1] != labels[j2]]
+
+    pair_counts = pd.Series(pairs).value_counts()
+    for (n1, n2), count in pair_counts.items():
+        idx1 = niche_summary.index(n1)
+        idx2 = niche_summary.index(n2)
+        n2n_mtx[idx1, idx2] += count
     
+    n1_count = np.sum(n2n_mtx, axis=1)
+    if reserve_nonexist:
+        n1_count[n1_count == 0] = 1
+
+    edge_prop_mtx = n2n_mtx/n1_count[:, np.newaxis]  
+
+    return edge_prop_mtx, n1_count 
+
+
+def nnc_between_groups_test(g1_list, g2_list, niche_labels, min_valid=3, alpha=0.05, alternative="two-sided", fdr_method="fdr_by"):
+
+    A = np.array(g1_list, dtype=float)  # (N1, n, n)
+    B = np.array(g2_list, dtype=float)    # (N2,  n, n)
+
+    n = len(niche_labels)
+
+    records = []
+    # pvals = []
+
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+
+            x = A[:, i, j]
+            y = B[:, i, j]
+
+            x = x[~np.isnan(x)]
+            y = y[~np.isnan(y)]
+
+            if (len(x) < min_valid) or (len(y) < min_valid):
+                p = np.nan
+                delta = np.nan
+            else:
+                # Mann–Whitney U
+                p = mannwhitneyu(x, y, alternative=alternative).pvalue
+                delta = np.mean(x) - np.mean(y)   # effect size: mean difference
+
+            records.append({
+                "niche1": niche_labels[i],
+                "niche2": niche_labels[j],
+                "mean1": np.nanmean(A[:, i, j]),
+                "mean2": np.nanmean(B[:, i, j]),
+                "delta_mean": delta,
+                "n1_valid": len(x),
+                "n2_valid": len(y),
+                "p_value": p
+            })
+            # pvals.append(p)
+
+    df = pd.DataFrame(records)
+
+    mask = df["p_value"].notna()
+    qvals = np.full(df.shape[0], np.nan, dtype=float)
+    rejected = np.full(df.shape[0], False, dtype=bool)
+    if mask.sum() > 0:
+        rej, q, _, _ = multipletests(df.loc[mask, "p_value"].values, method=fdr_method, alpha=alpha)
+        qvals[mask.values] = q
+        rej = [True if rej[i] else False for i in range(len(rej))]
+        rejected[mask.values] = rej
+        df["q_value"] = qvals
+        df["rejected"] = rejected
+
+    return df
